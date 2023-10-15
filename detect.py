@@ -1,13 +1,7 @@
-# =============================================================================
-# 1. pip install dlib
-# 2. Download  this Dlib facial Recongination from
-# https://github.com/davisking/dlib-models/blob/master/shape_predictor_68_face_landmarks.dat.bz2
-# =============================================================================
-
 import cv2
 import dlib
 from scipy.spatial import distance
-
+import time
 
 def calculate_eye_aspect_ratio(eye):
     A = distance.euclidean(eye[1], eye[5])
@@ -16,19 +10,20 @@ def calculate_eye_aspect_ratio(eye):
     ear_aspect_ratio = (A+B)/(2.0*C)
     return ear_aspect_ratio
 
-
 cap = cv2.VideoCapture(0)
 hog_face_detector = dlib.get_frontal_face_detector()
-dlib_facelandmark = dlib.shape_predictor(
-    "shape_predictor_68_face_landmarks.dat")
+dlib_facelandmark = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
+
+eyes_closed_time = None
 
 while True:
     _, frame = cap.read()
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
     faces = hog_face_detector(gray)
-    for face in faces:
+    eyes_open = False
 
+    for face in faces:
         face_landmarks = dlib_facelandmark(gray, face)
         leftEye = []
         rightEye = []
@@ -60,19 +55,26 @@ while True:
 
         EAR = (left_ear+right_ear)/2
         EAR = round(EAR, 2)
-        if EAR <= 0.20:
-            cv2.putText(frame, "Drowsiness Detection", (20, 50),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 4)
-            cv2.putText(frame, "Warning", (20, 100),
+        
+        if EAR > 0.20:  # Eyes are open
+            eyes_open = True
+
+    if eyes_open:
+        eyes_closed_time = None
+    elif eyes_closed_time is None:
+        eyes_closed_time = time.time()
+        print("Eyes closed")
+    else:
+        if time.time() - eyes_closed_time > 2:
+            cv2.putText(frame, "Eyes Closed for 3+ seconds", (20, 150),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 4)
-            print("Drowsiness")
-        print(EAR)
+            print("Eyes closed for 3+ seconds")
 
     cv2.imshow("Drowsiness Detection", frame)
 
     key = cv2.waitKey(1)
     if key == ord('q'):
         break
-# release the file pointers
+
 cap.release()
 cv2.destroyAllWindows()
